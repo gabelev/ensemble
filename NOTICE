@@ -1,0 +1,26 @@
+ensemble
+Copyright (C) 2026 Gabe Lev and contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See the LICENSE file for the full text.
+
+--------------------------------------------------------------------------------
+Third-party terms
+--------------------------------------------------------------------------------
+
+ensemble integrates with third-party services and models through adapters. The
+framework itself bundles none of them, but instances that wire these adapters
+are bound by the corresponding terms:
+
+- Model providers (e.g. Anthropic Claude): subject to the provider's usage
+  terms and acceptable-use policy. Model outputs are not covered by this
+  program's AGPL license.
+- Vision / audio-representation models used by instances (e.g. MERT, CLAP):
+  subject to their respective licenses; see the instance's NOTICE.
+- Fonts, corpora, and reference material used by an instance are governed by the
+  instance's own NOTICE, not this file.
+
+Instances built on ensemble MUST carry their own NOTICE enumerating the specific
+model, font, and data terms they invoke.
