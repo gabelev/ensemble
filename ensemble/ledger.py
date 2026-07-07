@@ -88,12 +88,23 @@ class InMemoryLedger:
 # embedder-backed clusterer. This exists so the pipeline runs without one.
 _STOPWORDS = frozenset(
     "the a an and or of to in on is it its as at by for with from this that these those "
-    "not no we you they he she i be are was were been being into over under out".split()
+    "not no we you they he she i be are was were been being into over under out "
+    # contraction stems left behind by apostrophe splitting (didn't -> didn + t)
+    "didn doesn isn wasn aren weren won don hasn haven hadn couldn shouldn wouldn "
+    "can cant ll ve re dont its what when where which who whom how why "
+    "did does do has have had will would could should there here their them his her "
+    "your our my but so if then than just only also very "
+    # near-empty nouns that ride along in almost any fragment
+    "thing things something anything nothing way ways one ones".split()
 )
 
 
 def _keywords(text: str) -> list[str]:
-    return [w for w in "".join(c.lower() if c.isalnum() else " " for c in text).split() if w not in _STOPWORDS and len(w) > 2]
+    return [
+        w
+        for w in "".join(c.lower() if c.isalnum() else " " for c in text).split()
+        if w not in _STOPWORDS and len(w) > 2 and not w.isdigit()
+    ]
 
 
 class KeywordClusterer:
@@ -112,17 +123,22 @@ class KeywordClusterer:
             return []
         total = len(fragments)
         by_keyword: dict[str, list[Fragment]] = {}
+        occurrences: dict[str, int] = {}
         for f in fragments:
-            for kw in set(_keywords(f.content)):
+            kws = _keywords(f.content)
+            for kw in set(kws):
                 by_keyword.setdefault(kw, []).append(f)
+            for kw in kws:
+                occurrences[kw] = occurrences.get(kw, 0) + 1
 
         ranked = [
             Cluster(label=label, fragments=frags, density=len(frags) / total)
             for label, frags in by_keyword.items()
         ]
-        # Densest first; break ties deterministically (alphabetical) so the same
-        # field always precipitates the same theme.
-        ranked.sort(key=lambda c: (-c.size, c.label))
+        # Densest first (fragments reached); then total occurrences (a word the
+        # field keeps returning to beats a word mentioned once); alphabetical
+        # last so the same field always precipitates the same theme.
+        ranked.sort(key=lambda c: (-c.size, -occurrences[c.label], c.label))
         return ranked
 
 
