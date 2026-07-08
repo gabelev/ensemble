@@ -95,6 +95,27 @@ class AnthropicProvider:
             turns = [{"role": "user", "content": ""}]
         return "\n\n".join(system_parts), turns
 
+    def complete_with_web_search(
+        self, messages: Sequence[Message], *, max_searches: int = 5, **kwargs: Any
+    ) -> str:
+        """Chat completion with the Anthropic web_search server tool enabled.
+        The API executes the searches; the reply text carries the findings."""
+        system, turns = self._split(messages)
+        payload: dict[str, Any] = {
+            "model": kwargs.get("model", self.model),
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "messages": turns,
+            "tools": [{
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": max_searches,
+            }],
+        }
+        if system:
+            payload["system"] = system
+        data = self._post(payload)
+        return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode()
         last_err: Exception | None = None
