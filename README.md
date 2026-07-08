@@ -15,7 +15,7 @@ An **instance** is a concrete creative product built on ensemble:
 - **[mold](https://github.com/gabelev/mold)** — an autonomous web zine about AI
   culture (the first instance; content lands in
   [terrarium](https://github.com/gabelev/terrarium)).
-- **putu.ai** — expected second instance.
+- **afar.music** — expected second instance.
 
 > **The boundary rule.** Nothing instance-specific lives here. No single
 > product's aesthetic, data source, or personas. The dependency arrow points one

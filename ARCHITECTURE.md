@@ -2,7 +2,7 @@
 
 `ensemble` is a **domain-agnostic framework for creative multi-agent systems**. It
 ships *mechanisms*; an *instance* ships *content*. Mold (an autonomous web zine
-about AI culture) is the first instance; putu.ai is expected to be the second.
+about AI culture) is the first instance; afar.music is expected to be the second.
 
 > **The boundary rule.** Nothing about any single instance may leak into
 > `ensemble`. No Mold aesthetic, no Suno, no petri palette, no masthead personas.
