@@ -99,11 +99,17 @@ _STOPWORDS = frozenset(
 )
 
 
+_URLISH = frozenset("https http www com org net html php index sites".split())
+
+
 def _keywords(text: str) -> list[str]:
+    # URLs are provenance, not meaning — a field of sourced fragments must not
+    # cluster on 'https'. Strip them before tokenizing.
+    text = " ".join(w for w in text.split() if not w.startswith(("http://", "https://", "(http")))
     return [
         w
         for w in "".join(c.lower() if c.isalnum() else " " for c in text).split()
-        if w not in _STOPWORDS and len(w) > 2 and not w.isdigit()
+        if w not in _STOPWORDS and w not in _URLISH and len(w) > 2 and not w.isdigit()
     ]
 
 
