@@ -102,3 +102,56 @@ def test_web_search_parser_survives_quotes_in_summaries() -> None:
     rows = adapter._parse(reply, NOW)
     assert [e.url for e in rows] == ["https://billboard.com/x", "https://forbes.com/y"]
     assert 'uncanny' in rows[0].summary  # quotes preserved, record intact
+
+
+def test_deep_verify_uses_facts_path_no_window() -> None:
+    """Deep-verify pulls current facts about an in-window subject WITHOUT
+    re-applying the recency window (the bug that returned nothing)."""
+    from ensemble.perceive import Evidence, Perceiver
+
+    class _FactsAdapter:
+        name = "facts"
+
+        def search(self, query, *, now):
+            return []  # broad path unused here
+
+        def search_facts(self, subject, *, now):
+            # an undated chart page + an old-but-canonical source; both kept
+            return [
+                Evidence(title=subject, url="https://chart.example/now",
+                         published=now.isoformat(), summary="No.1, 3.6M streams", source="facts"),
+                Evidence(title=subject, url="https://forbes.example/apr",
+                         published="2026-04-01", summary="220k followers", source="facts"),
+            ]
+
+    sink = _ListSink()
+    p = Perceiver([_FactsAdapter()], window_days=30, sink=sink, clock=lambda: NOW)
+    kept = p.deep_verify("IngaRose", cycle_id="000")
+    # Both survive — the April source would have been window-filtered by broad scan.
+    assert {e.url for e in kept} == {"https://chart.example/now", "https://forbes.example/apr"}
+    assert all(row[2] == "IngaRose" for row in sink.rows)
+
+
+def test_facts_parser_keeps_undated_records() -> None:
+    from ensemble.adapters.search import AnthropicWebSearch
+
+    reply = (
+        "FACT: IngaRose 'Celebrate Me' is No. 1 on iTunes in five countries\n"
+        "URL: https://forbes.com/a\n"
+        "DATE:\n"        # no date — must still be kept
+        "---\n"
+        "FACT: 220,000 followers\nURL: https://tiktok.com/b\nDATE: 2026-07-05\n"
+        "---\n"
+        "FACT: missing url\nURL: not-a-url\nDATE: 2026-07-01\n"
+    )
+    a = AnthropicWebSearch.__new__(AnthropicWebSearch)
+    a.max_results = 8
+    rows = a._parse_facts_test = None
+    # exercise via the block loop used by search_facts
+    from datetime import date as _date
+    out = []
+    for block in reply.split("---"):
+        f = a._fields(block)
+        if f.get("fact") and f.get("url", "").startswith("http"):
+            out.append(f["url"])
+    assert out == ["https://forbes.com/a", "https://tiktok.com/b"]

@@ -122,9 +122,30 @@ class Perceiver:
                     extra_queries: Sequence[str] = ()) -> list[Evidence]:
         """Pass 2: current facts about one committed subject, pulled right
         before writing. Stale figures are the tell of a machine that didn't
-        actually look."""
-        queries = [f"{subject} latest {{month_year}}", *extra_queries]
-        return self._run(queries, cycle_id=cycle_id, claim=subject)
+        actually look.
+
+        The subject already precipitated from an in-window fragment, so this
+        pass does NOT re-apply the recency window (that dropped undated chart
+        /follower pages and left deep-verify empty). Adapters exposing
+        `search_facts` use the facts path; others fall back to query search.
+        URL is still required — an unsourced figure is worthless."""
+        now = self.clock()
+        seen: dict[str, Evidence] = {}
+        for adapter in self.adapters:
+            if hasattr(adapter, "search_facts"):
+                results = adapter.search_facts(subject, now=now)
+            else:
+                results = []
+                for template in [f"{subject} latest {{month_year}}", *extra_queries]:
+                    results = [*results, *adapter.search(format_query(template, now), now=now)]
+            for e in results:
+                if (e.url or "").startswith(("http://", "https://")) and e.url not in seen:
+                    seen[e.url] = e
+        kept = list(seen.values())
+        if self.sink is not None:
+            for e in kept:
+                self.sink.record(cycle_id, e, subject)
+        return kept
 
     def _run(self, queries: Sequence[str], *, cycle_id: str, claim: str | None) -> list[Evidence]:
         now = self.clock()

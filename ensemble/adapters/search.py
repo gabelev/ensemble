@@ -36,6 +36,22 @@ publication date — skip anything you cannot date. Facts only, no interpretatio
 Do not wrap the output in code fences. Today is {today}."""
 
 
+_FACTS_PROMPT = """Find the CURRENT status and hard facts about: {subject}
+
+As of {today}, search for the latest concrete figures — chart position, stream
+/ view / follower counts, sales, the most recent development in the story. For
+EACH source, output a record in EXACTLY this format:
+
+FACT: <one current fact, with the concrete number or status>
+URL: <source URL>
+DATE: <publication date YYYY-MM-DD if you saw one, otherwise leave this line blank>
+---
+
+Separate records with a line of three dashes. Only include a record with a real
+source URL. Prefer the most recent sources. Facts and numbers only — no
+interpretation. Do not wrap the output in code fences. Today is {today}."""
+
+
 class AnthropicWebSearch:
     """SearchAdapter over the Anthropic web_search server tool."""
 
@@ -53,6 +69,30 @@ class AnthropicWebSearch:
             max_searches=self.max_searches,
         )
         return self._parse(reply, now)
+
+    def search_facts(self, subject: str, *, now: date) -> Sequence[Evidence]:
+        """Deep-verify: current figures about ONE known-in-window subject. URL
+        required; publication date OPTIONAL (stamped as-of today when absent) —
+        chart/follower pages rarely carry a clean date, and dropping them was
+        why deep-verify returned nothing."""
+        reply = self.provider.complete_with_web_search(
+            [Message(role="user", content=_FACTS_PROMPT.format(subject=subject, today=now.isoformat()))],
+            max_searches=self.max_searches,
+        )
+        out: list[Evidence] = []
+        for block in reply.split("---"):
+            f = self._fields(block)
+            fact, url = f.get("fact", ""), f.get("url", "")
+            if not fact or not url.startswith(("http://", "https://")):
+                continue
+            out.append(Evidence(
+                title=subject, url=url,
+                published=(f.get("date") or now.isoformat())[:10],
+                summary=fact, source=self.name, fetched_at=now.isoformat(),
+            ))
+            if len(out) >= self.max_results:
+                break
+        return out
 
     def _parse(self, reply: str, now: date) -> list[Evidence]:
         out: list[Evidence] = []
@@ -85,7 +125,7 @@ class AnthropicWebSearch:
             if not stripped:
                 continue
             key = None
-            for label in ("TITLE", "URL", "DATE", "SUMMARY"):
+            for label in ("TITLE", "URL", "DATE", "SUMMARY", "FACT"):
                 if stripped.upper().startswith(label + ":"):
                     key = label.lower()
                     fields[key] = stripped[len(label) + 1:].strip()
