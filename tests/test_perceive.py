@@ -74,3 +74,31 @@ def test_perceiver_dedups_filters_and_logs_provenance() -> None:
     kept = p.deep_verify("IngaRose Celebrate Me", cycle_id="000")
     assert sink.rows[-1][2] == "IngaRose Celebrate Me"  # claim logged
     assert any("IngaRose" in q for q in adapter.queries[1:])
+
+
+def test_web_search_parser_survives_quotes_in_summaries() -> None:
+    """The real-world failure: unescaped quotes in titles/summaries. The
+    delimited format must not drop the record the way JSON did."""
+    from ensemble.adapters.search import AnthropicWebSearch
+
+    reply = (
+        'Based on the search:\n\n'
+        'TITLE: "Walk My Walk" by Breaking Rust\n'
+        'URL: https://billboard.com/x\n'
+        'DATE: 2026-07-02\n'
+        'SUMMARY: The AI act\'s single "Walk My Walk" hit No. 1; fans call it "uncanny".\n'
+        '---\n'
+        'TITLE: IngaRose chart run\n'
+        'URL: https://forbes.com/y\n'
+        'DATE: 2026-06-28\n'
+        'SUMMARY: #1 in five countries.\n'
+        '---\n'
+        'TITLE: undated rumor\n'
+        'URL: https://example.com/z\n'
+        'SUMMARY: no date so must be dropped.\n'
+    )
+    adapter = AnthropicWebSearch.__new__(AnthropicWebSearch)
+    adapter.max_results = 8
+    rows = adapter._parse(reply, NOW)
+    assert [e.url for e in rows] == ["https://billboard.com/x", "https://forbes.com/y"]
+    assert 'uncanny' in rows[0].summary  # quotes preserved, record intact
